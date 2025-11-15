@@ -1,0 +1,1 @@
+{"version":2,"defects":[],"times":{"WeightValidatorTest::testWeightIsValidWhenWithinTolerance":0.099,"WeightValidatorTest::testWeightIsInvalidWhenOutsideTolerance":0.003,"WeightValidatorTest::testReturnsErrorForNonExistentProduct":0.016}}
