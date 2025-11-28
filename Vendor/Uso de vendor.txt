@@ -1,0 +1,5 @@
+Vendor fue creado por "composer" al usar las pruebas unitarias "PHPUnit" 
+-> "composer require --dev phpunit/phpunit". Gracias a "autoload.php" dentro de vendor
+Podemos usar todas esas librerías en tu código simplemente incluyendo ese único archivo, 
+sin tener que hacer include de cada librería una por una.
+Como recuperar vendor, con el comando -> composer install.
