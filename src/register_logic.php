@@ -7,38 +7,46 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// 1. Capturar todos los datos, incluyendo el nuevo email
 $full_name = $_POST['full_name'] ?? '';
 $username = $_POST['username'] ?? '';
+$email = $_POST['email'] ?? ''; // Nuevo campo
 $password = $_POST['password'] ?? '';
 
-if (empty($full_name) || empty($username) || empty($password)) {
-    // Manejar error de campos vacíos (idealmente con mensajes de sesión)
-    die("Todos los campos son requeridos.");
+// 2. Validar que no haya campos vacíos
+if (empty($full_name) || empty($username) || empty($email) || empty($password)) {
+    // Podrías guardar un mensaje en $_SESSION['error'] y redirigir
+    die("Todos los campos (incluyendo el correo) son requeridos.");
 }
 
-// Hashear la contraseña por seguridad
+// 3. Hashear la contraseña
 $password_hash = password_hash($password, PASSWORD_DEFAULT);
 
 $database = new Database();
 $conn = $database->getConnection();
 
 try {
-    $query = "INSERT INTO users (full_name, username, password_hash) VALUES (:full_name, :username, :password_hash)";
+    // 4. Actualizar la consulta SQL para incluir el email
+    $query = "INSERT INTO users (full_name, username, email, password_hash) VALUES (:full_name, :username, :email, :password_hash)";
     $stmt = $conn->prepare($query);
+    
+    // 5. Vincular los parámetros
     $stmt->bindParam(':full_name', $full_name);
     $stmt->bindParam(':username', $username);
+    $stmt->bindParam(':email', $email); // Nuevo vínculo
     $stmt->bindParam(':password_hash', $password_hash);
     
     if ($stmt->execute()) {
-        // Redirigir al login con un mensaje de éxito
         header('Location: ../public/login_user.php?registration=success');
         exit;
     }
 } catch (PDOException $e) {
-    // Error 1062 es para entradas duplicadas (username ya existe)
+    // El error 1062 ocurre cuando se viola una restricción UNIQUE (username o email duplicado)
     if ($e->errorInfo[1] == 1062) {
-        die("Error: El nombre de usuario ya existe. Por favor, elige otro.");
+        // Mensaje más específico
+        die("Error: El nombre de usuario o el correo electrónico ya están registrados. Intenta con otros datos.");
     } else {
         die("Error al registrar el usuario: " . $e->getMessage());
     }
 }
+?>
