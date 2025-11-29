@@ -30,8 +30,14 @@
         <form action="../src/register_admin_logic.php" method="POST">
             <label for="username">Nombre de Usuario:</label>
             <input type="text" id="username" name="username" required>
+
+            <!-- Nuevo campo de correo para administradores -->
+            <label for="email">Correo Corporativo/Personal:</label>
+            <input type="email" id="email" name="email" required placeholder="admin@empresa.com">
+
             <label for="password">Contraseña:</label>
             <input type="password" id="password" name="password" required>
+            
             <button type="submit">Crear Administrador</button>
         </form>
         <div class="login-link">
