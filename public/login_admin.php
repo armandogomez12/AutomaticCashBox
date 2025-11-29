@@ -14,8 +14,7 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login de Administrador</title>
     <style>
-        :root { --primary-color: #6f42c1; /* Cambiamos a un color morado para admin */ }
-        /* ... (Copia y pega TODOS los estilos CSS de tu archivo index.php aquí) ... */
+        :root { --primary-color: #6f42c1; /* Color morado para admin */ }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f8f9fa; color: #343a40; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .container { background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); width: 100%; max-width: 400px; text-align: center; }
         h1 { margin-bottom: 30px; font-weight: 600; }
@@ -24,6 +23,9 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
         button { width: 100%; padding: 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: 500; transition: background-color 0.2s; }
         button:hover { background-color: #5a32a3; }
         .error-message { background-color: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-top: 20px; }
+        .link-container { margin-top: 20px; text-align: center; }
+        .link-container a { color: var(--primary-color); text-decoration: none; }
+        .link-container a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -39,15 +41,19 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
             <button type="submit">Iniciar Sesión</button>
         </form>
 
-        <div style="margin-top: 20px; text-align: center;">
-    <a href="register_admin.php">Registrar nuevo administrador</a>
-</div>
+        <div class="link-container">
+            <a href="register_admin.php">Registrar nuevo administrador</a>
+        </div>
         
+        <div class="link-container">
+            <!-- ENLACE CORREGIDO: Apunta al archivo de recuperación -->
+            <a href="recuperar_contraseña_admin.php">¿Olvidaste tu contraseña?</a>
+        </div>
+
         <?php
-        // Mostrar mensaje de error si existe
         if (isset($_SESSION['error_message'])) {
             echo '<div class="error-message">' . $_SESSION['error_message'] . '</div>';
-            unset($_SESSION['error_message']); // Limpiar el mensaje para que no se muestre de nuevo
+            unset($_SESSION['error_message']); 
         }
         ?>
     </div>
