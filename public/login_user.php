@@ -49,6 +49,9 @@ if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true) 
         <div class="register-link">
             ¿No tienes una cuenta? <a href="register_user.php">Regístrate</a>
         </div>
+        <div class="register-link">
+            ¿No recuerdas tu contraseña? <a href="recuperar_contraseña_user.php">Recuperar</a>
+        </div>
     </div>
 </body>
 </html>
