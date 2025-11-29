@@ -1,48 +1,91 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Registrar Nuevo Administrador</title>
-    <style>
-        :root { --primary-color: #6f42c1; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        h1 { margin-bottom: 30px; }
-        form label { display: block; text-align: left; font-weight: 500; margin-bottom: 8px; }
-        input { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-        button { width: 100%; padding: 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; }
-        .message { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
-        .login-link { margin-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Registrar Administrador</h1>
-        
-        <?php if (isset($_GET['status']) && $_GET['status'] === 'success'): ?>
-            <div class="message success">¡Administrador registrado con éxito!</div>
-        <?php elseif (isset($_GET['error'])): ?>
-            <div class="message error"><?php echo htmlspecialchars($_GET['error']); ?></div>
-        <?php endif; ?>
+<?php
+session_start();
+require_once __DIR__ . '/../config/database.php';
 
-        <form action="../src/register_admin_logic.php" method="POST">
-            <label for="username">Nombre de Usuario:</label>
-            <input type="text" id="username" name="username" required>
+// Verificación de sesión de admin (Opcional, descomentar si lo deseas)
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    // die("Acceso denegado.");
+}
 
-            <!-- Nuevo campo de correo para administradores -->
-            <label for="email">Correo Corporativo/Personal:</label>
-            <input type="email" id="email" name="email" required placeholder="admin@empresa.com">
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: ../public/register_admin.php');
+    exit;
+}
 
-            <label for="password">Contraseña:</label>
-            <input type="password" id="password" name="password" required>
-            
-            <button type="submit">Crear Administrador</button>
-        </form>
-        <div class="login-link">
-            ¿Ya tienes una cuenta? <a href="login_admin.php">Inicia sesión</a>
-        </div>
-    </div>
-</body>
-</html>
+// ---------------------------------------------------------
+// BLOQUE DE VERIFICACIÓN GOOGLE RECAPTCHA
+// ---------------------------------------------------------
+$recaptcha_response = $_POST['g-recaptcha-response'] ?? '';
+$secret_key = "6LfmixssAAAAAGTflymIHm2SXzRUqXA-IObfj3CU"; // <--- PEGA TU CLAVE SECRETA AQUÍ
+
+if (empty($recaptcha_response)) {
+    header('Location: ../public/register_admin.php?error=Por favor, completa la verificación "No soy un robot".');
+    exit;
+}
+
+$verify_url = "https://www.google.com/recaptcha/api/siteverify";
+$data = [
+    'secret' => $secret_key,
+    'response' => $recaptcha_response,
+    'remoteip' => $_SERVER['REMOTE_ADDR']
+];
+
+$options = [
+    'http' => [
+        'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
+        'method'  => 'POST',
+        'content' => http_build_query($data)
+    ]
+];
+
+$context  = stream_context_create($options);
+$result = file_get_contents($verify_url, false, $context);
+$response_keys = json_decode($result, true);
+
+if(!$response_keys["success"]) {
+    header('Location: ../public/register_admin.php?error=Verificación de seguridad fallida.');
+    exit;
+}
+// ---------------------------------------------------------
+
+
+$username = $_POST['username'] ?? '';
+$email = $_POST['email'] ?? '';
+$password = $_POST['password'] ?? '';
+
+if (empty($username) || empty($email) || empty($password)) {
+    header('Location: ../public/register_admin.php?error=Todos los campos son requeridos');
+    exit;
+}
+
+$password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+// ESTADO INICIAL: 0 (Desactivado/Lista de espera)
+$is_active = 0;
+
+$database = new Database();
+$conn = $database->getConnection();
+
+try {
+    $query = "INSERT INTO admins (username, email, password_hash, is_active) VALUES (:username, :email, :password_hash, :is_active)";
+    $stmt = $conn->prepare($query);
+    
+    $stmt->bindParam(':username', $username);
+    $stmt->bindParam(':email', $email);
+    $stmt->bindParam(':password_hash', $password_hash);
+    $stmt->bindParam(':is_active', $is_active);
+    
+    if ($stmt->execute()) {
+        $msg = "Registro creado. La cuenta está EN ESPERA de activación por un Super Usuario.";
+        header('Location: ../public/register_admin.php?status=success&msg=' . urlencode($msg));
+        exit;
+    }
+} catch (PDOException $e) {
+    if ($e->errorInfo[1] == 1062) {
+        header('Location: ../public/register_admin.php?error=El usuario o el correo ya existen.');
+    } else {
+        header('Location: ../public/register_admin.php?error=Error DB: ' . $e->getMessage());
+    }
+    exit;
+}
+?>
