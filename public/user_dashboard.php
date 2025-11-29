@@ -1,6 +1,6 @@
 <?php
 session_start();
-// ... (Tu código de seguridad PHP no cambia)
+
 if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
     header('Location: login_user.php');
     exit;
@@ -24,7 +24,7 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border-color); }
         th { background-color: var(--light-gray); }
         form label { display: block; margin-bottom: 5px; font-weight: 500; }
-        form input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 5px; box-sizing: border-box; }
+        form input, form select { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 5px; box-sizing: border-box; }
         form button { width: 100%; padding: 12px; background-color: var(--primary-color); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
         #resultado { margin-top: 20px; padding: 15px; border-radius: 5px; display: none; }
         .pass { background-color: #d4edda; color: #155724; }
@@ -33,11 +33,20 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
         .modal-content { background: white; padding: 30px; border-radius: 8px; width: 90%; max-width: 500px; text-align: center; }
         .modal-buttons { display: flex; gap: 15px; justify-content: center; margin-top: 25px; }
         .modal-buttons button { width: auto; padding: 10px 20px; border: none; color: white; border-radius: 5px; cursor: pointer; font-size: 16px; }
-        #btn-pay-confirm { background-color: var(--success-color); }
+        
         #btn-continue-shopping { background-color: var(--primary-color); }
         #btn-clear-purchases { background-color: var(--danger-color); }
-        #payment-methods-msg { color: #6c757d; font-style: italic; margin-top: 15px; display: none; }
         #btn-show-pay-modal { background-color: var(--success-color); color: white; width: 100%; padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 20px;}
+        
+        /* Estilos para los botones de pago */
+        .payment-options { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+        .btn-payment { 
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            padding: 12px; border-radius: 5px; text-decoration: none; color: white; font-weight: bold; transition: opacity 0.3s;
+        }
+        .btn-payment:hover { opacity: 0.9; }
+        .btn-paypal { background-color: #003087; } /* Azul PayPal */
+        .btn-visa { background-color: #1a1f71; }   /* Azul Visa */
     </style>
 </head>
 <body>
@@ -61,19 +70,23 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
             </table>
         </div>
         <div class="container-right">
+            
             <div class="container">
                 <h2>Validar Nueva Compra</h2>
                 <form id="purchase-form">
-                    <label for="scale_id">ID del Producto:</label>
-                    <input type="text" id="scale_id" required>
-                    <label for="price">Costo Pagado ($):</label>
-                    <input type="number" id="price" step="0.01" required>
+                    <label for="purchase_scale_id">ID del Producto:</label>
+                    <input type="text" id="purchase_scale_id" required>
+                    
+                    <label for="purchase_price">Costo Pagado ($):</label>
+                    <input type="number" id="purchase_price" step="0.01" required>
+                    
                     <button type="submit">Validar Compra</button>
                 </form>
                 <button id="scan-qr-btn" style="width:100%; padding:10px; margin-top:10px;">Escanear QR</button>
                 <div id="qr-reader" style="display: none;"></div>
                 <div id="resultado"></div>
             </div>
+
             <div class="container">
                 <h2>Mis Compras Anteriores</h2>
                 <table id="purchases-table">
@@ -88,12 +101,12 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
                 </table>
                 <button id="btn-show-pay-modal">Pagar / Finalizar</button>
             </div>
+
             <div class="validation-container" style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
                 <h3>Validar Compra por Peso</h3>
-                
                 <form id="validation-form">
                     <label>Selecciona un producto:</label>
-                    <select id="scale_id" name="scale_id" required style="padding: 8px; margin: 10px 0;">
+                    <select id="validation_scale_id" name="scale_id" required style="padding: 8px; margin: 10px 0;">
                         <option value="">-- Selecciona un producto --</option>
                         <option value="MANZANA_ROJA">Manzana Roja Grande (1000g)</option>
                         <option value="PLATANO_CHIAPAS">Plátano de Chiapas (1000g)</option>
@@ -112,7 +125,7 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
                     <p><strong>Peso esperado:</strong> <span id="expected-weight">--</span> g</p>
                     <p><strong>Peso medido:</strong> <span id="measured-weight">--</span> g</p>
                     <p><strong>Tolerancia:</strong> <span id="tolerance">--</span> g</p>
-                    <p><strong>Precio:</strong> $<span id="price">--</span></p>
+                    <p><strong>Precio:</strong> $<span id="display-price">--</span></p>
                     <p id="message" style="font-size: 16px; font-weight: bold;"></p>
                     <button type="button" id="cancel-btn" style="padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;">
                         Cancelar
@@ -121,32 +134,47 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
             </div>
         </div>
     </main>
+
+    <!-- MODAL DE PAGO ACTUALIZADO -->
     <div id="payment-modal" class="modal-overlay">
         <div class="modal-content">
-            <h3>¿Desea concluir la compra?</h3>
-            <p id="payment-methods-msg">Formas de pago (próximamente)...</p>
+            <h3>Finalizar Compra</h3>
+            <p>Selecciona tu método de pago preferido:</p>
+            
+            <div class="payment-options">
+                <!-- Enlace a PayPal -->
+                <a href="https://www.paypal.com/signin" target="_blank" class="btn-payment btn-paypal">
+                    Pagar con PayPal
+                </a>
+                
+                <!-- Enlace simulado a Tarjeta  -->
+                <a href="https://www.visa.com.mx/pagar-con-visa/portal-de-tarjetahabientes.html" target="_blank" class="btn-payment btn-visa">
+                    Pagar con Tarjeta
+                </a>
+            </div>
+
             <div class="modal-buttons">
-                <button id="btn-pay-confirm">Pagar</button>
                 <button id="btn-continue-shopping">Seguir Comprando</button>
-                <button id="btn-clear-purchases">Limpiar Compras</button>
+                <button id="btn-clear-purchases">Limpiar Carrito</button>
             </div>
         </div>
     </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Referencias DOM ---
+    // Referencias DOM
     const productsTbody = document.getElementById('products-tbody');
     const purchasesTbody = document.getElementById('purchases-tbody');
     const purchaseForm = document.getElementById('purchase-form');
     const resultadoDiv = document.getElementById('resultado');
-    const scaleIdInput = document.getElementById('scale_id');
-    const priceInput = document.getElementById('price'); // IMPORTANTE
+    
+    const scaleIdInput = document.getElementById('purchase_scale_id'); 
+    const priceInput = document.getElementById('purchase_price'); 
+    
     const paymentModal = document.getElementById('payment-modal');
     const btnShowPayModal = document.getElementById('btn-show-pay-modal');
     const btnContinueShopping = document.getElementById('btn-continue-shopping');
-    const btnPayConfirm = document.getElementById('btn-pay-confirm');
     const btnClearPurchases = document.getElementById('btn-clear-purchases');
-    const paymentMethodsMsg = document.getElementById('payment-methods-msg');
 
     async function fetchProducts() {
         try {
@@ -204,10 +232,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- LÓGICA DEL FORMULARIO DE COMPRA ---
+    // LÓGICA COMPRA 
     purchaseForm.addEventListener('submit', async (event) => {
         event.preventDefault();
-        const formData = { scale_id: scaleIdInput.value, price: document.getElementById('price').value };
+        const formData = { scale_id: scaleIdInput.value, price: priceInput.value };
         try {
             const response = await fetch('validate_purchase.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
             const result = await response.json();
@@ -225,38 +253,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- LÓGICA DEL QR CORREGIDA (SOPORTE MULTIFORMATO) ---
+    // QR 
     const scanQrBtn = document.getElementById('scan-qr-btn');
     const qrReaderDiv = document.getElementById('qr-reader');
     const html5QrCode = new Html5Qrcode("qr-reader");
 
     const onScanSuccess = (decodedText) => {
         let parts = decodedText.split('|');
-        if (parts.length < 2) {
-            parts = decodedText.split(',');
-        }
+        if (parts.length < 2) parts = decodedText.split(',');
 
         if (parts.length >= 5) {
-            // CASO 1: Formato Largo (Del Admin Panel)
-            // Estructura: Nombre|ID|Peso|Tolerancia|Precio
-            // ID está en índice 1, Precio en índice 4
             scaleIdInput.value = parts[1].trim(); 
-            document.getElementById('price').value = parts[4].trim();
-            
+            priceInput.value = parts[4].trim();
         } else if (parts.length >= 2) {
-            // CASO 2: Formato Corto (ID y Precio)
-            // Estructura: ID|Precio
-            // ID está en índice 0, Precio en índice 1
             scaleIdInput.value = parts[0].trim();
-            document.getElementById('price').value = parts[1].trim();
-            
+            priceInput.value = parts[1].trim();
         } else {
-            // CASO 3: Formato desconocido, pegamos todo al ID
             scaleIdInput.value = decodedText;
             alert("Formato QR simple detectado. Verifica el precio manualmente.");
         }
-
-        html5QrCode.stop().catch(err => console.error("Fallo al detener el scanner.", err));
+        html5QrCode.stop().catch(console.error);
         qrReaderDiv.style.display = 'none';
     };
 
@@ -264,33 +280,26 @@ document.addEventListener('DOMContentLoaded', () => {
         qrReaderDiv.style.display = 'block';
         html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {});
     });
-    // ---------------------------------
 
+    // --- Modal ---
     btnShowPayModal.addEventListener('click', () => {
         paymentModal.style.display = 'flex';
-        paymentMethodsMsg.style.display = 'none';
     });
     btnContinueShopping.addEventListener('click', () => {
         paymentModal.style.display = 'none';
     });
-    btnPayConfirm.addEventListener('click', () => {
-        paymentMethodsMsg.style.display = 'block';
-    });
+    
     btnClearPurchases.addEventListener('click', async () => {
-        if (confirm('¿Estás seguro de que quieres borrar TODO tu historial de compras? Esta acción no se puede deshacer.')) {
+        if (confirm('¿Estás seguro de que quieres borrar TODO tu historial de compras?')) {
             try {
                 const response = await fetch('../api/clear_purchases.php', { method: 'POST' });
                 const data = await response.json();
                 if (data.success) {
-                    alert('Tu historial ha sido limpiado.');
+                    alert('Historial limpiado.');
                     fetchUserPurchases();
                     paymentModal.style.display = 'none';
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Error de conexión al intentar limpiar el historial.');
-            }
+                } else { alert('Error: ' + data.error); }
+            } catch (error) { alert('Error de conexión.'); }
         }
     });
 
@@ -298,44 +307,34 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchUserPurchases();
 });
 </script>
+
 <script>
-    // --- Lógica de Validación por Peso (Polling) ---
     let validationId = null;
     let checkInterval = null;
 
     document.getElementById('validation-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        const scaleId = document.getElementById('scale_id').value;
+        const scaleId = document.getElementById('validation_scale_id').value;
+        if(!scaleId) { alert("Por favor selecciona un producto"); return; }
+
         const formData = new FormData();
         formData.append('scale_id', scaleId);
 
         try {
-            const response = await fetch('validate_purchase.php', {
-                method: 'POST',
-                body: formData
-            });
-
+            const response = await fetch('validate_purchase.php', { method: 'POST', body: formData });
             const data = await response.json();
 
             if (data.success) {
                 validationId = data.validation_id;
-                
                 document.getElementById('weight-info').style.display = 'block';
                 document.getElementById('expected-weight').textContent = data.expected_weight;
                 document.getElementById('tolerance').textContent = data.tolerance;
-                document.getElementById('price').textContent = data.price;
+                document.getElementById('display-price').textContent = data.price;
                 document.getElementById('message').textContent = data.message;
-
-                // Iniciar polling
                 checkValidationStatus();
                 checkInterval = setInterval(checkValidationStatus, 2000);
-            } else {
-                alert('Error: ' + data.error);
-            }
-        } catch (error) {
-            alert('Error al conectar: ' + error.message);
-        }
+            } else { alert('Error: ' + data.error); }
+        } catch (error) { alert('Error al conectar: ' + error.message); }
     });
 
     async function checkValidationStatus() {
