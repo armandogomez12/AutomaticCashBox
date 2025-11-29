@@ -20,7 +20,7 @@ $user_id = $_SESSION['user_id'];
 $scale_id = $_POST['scale_id'] ?? null;
 
 if (!$scale_id) {
-    echo json_encode(['success' => false, 'error' => 'scale_id requerido']);
+    echo json_encode(['success' => false, 'error' => 'Validar el peso del producto es requerido para continuar']);
     exit;
 }
 
