@@ -1,9 +1,8 @@
 <?php
 session_start();
 
-// Si el usuario ya está logueado, redirigir a su panel
 if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true) {
-    header('Location: user_dashboard.php'); // Lo crearemos después
+    header('Location: user_dashboard.php'); 
     exit;
 }
 ?>
@@ -11,8 +10,11 @@ if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true) 
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login de Usuario</title>
-    <link rel="stylesheet" href="register_user.php" media="print" onload="this.media='all'">
+    <!-- Script de Google reCAPTCHA -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    
     <style>
         :root { --primary-color: #007bff; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f8f9fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
@@ -25,6 +27,9 @@ if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true) 
         .success { background-color: #d4edda; color: #155724; }
         .error { background-color: #f8d7da; color: #721c24; }
         .register-link { margin-top: 20px; }
+        
+        /* Centrar el reCAPTCHA */
+        .g-recaptcha { display: flex; justify-content: center; margin-bottom: 20px; }
     </style>
 </head>
 <body>
@@ -42,13 +47,21 @@ if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true) 
         <form action="../src/auth_user.php" method="POST">
             <label for="username">Nombre de Usuario:</label>
             <input type="text" id="username" name="username" required>
+
             <label for="password">Contraseña:</label>
             <input type="password" id="password" name="password" required>
+
+            <!-- AQUI VA EL CAPTCHA DE GOOGLE -->
+            <!-- Reemplaza el data-sitekey con tu clave pública -->
+            <div class="g-recaptcha" data-sitekey="6LfmixssAAAAAMg_pnFQpifT7wgrD3sledW4uAE0"></div>
+
             <button type="submit">Entrar</button>
         </form>
+
         <div class="register-link">
             ¿No tienes una cuenta? <a href="register_user.php">Regístrate</a>
         </div>
+
         <div class="register-link">
             ¿No recuerdas tu contraseña? <a href="recuperar_contraseña_user.php">Recuperar</a>
         </div>
