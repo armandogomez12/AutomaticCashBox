@@ -1,35 +1,33 @@
 <?php
 session_start();
-header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
+header('Content-Type: application/json');
 
-// --- SEGURIDAD ---
-// Solo un usuario logueado puede borrar su propio historial
-if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
-    echo json_encode(['success' => false, 'error' => 'Acceso no autorizado.']);
+// Verificar sesión
+if (!isset($_SESSION['user_logged_in'])) {
+    echo json_encode(['success' => false, 'error' => 'No autorizado']);
     exit;
 }
 
-// Asegurarnos de que la petición sea por el método correcto (POST para acciones destructivas)
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'error' => 'Método no permitido.']);
-    exit;
-}
-
-$user_id = $_SESSION['user_id'];
+$userId = $_SESSION['user_id'];
 $database = new Database();
 $conn = $database->getConnection();
 
 try {
-    // Consulta para borrar todos los registros del usuario actual
-    $query = "DELETE FROM measurement_logs WHERE user_id = :user_id";
+    // borramos la tabla de'user_purchases esto elimina todo el historial visual del usuario actual
+    $query = "DELETE FROM user_purchases WHERE user_id = :uid";
     $stmt = $conn->prepare($query);
-    $stmt->bindParam(':user_id', $user_id);
     
-    if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Historial de compras limpiado.']);
+    if ($stmt->execute([':uid' => $userId])) {
+        echo json_encode(['success' => true]);
     } else {
-        echo json_encode(['success' => false, 'error' => 'No se pudo limpiar el historial.']);
+        echo json_encode(['success' => false, 'error' => 'No se pudo borrar']);
+    }
+
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'error' => 'Error de base de datos: ' . $e->getMessage()]);
+}
+?>
     }
 
 } catch (PDOException $e) {
