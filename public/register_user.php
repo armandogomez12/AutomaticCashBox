@@ -24,10 +24,17 @@
         <form action="../src/register_logic.php" method="POST">
             <label for="full_name">Nombre Completo:</label>
             <input type="text" id="full_name" name="full_name" required>
+            
             <label for="username">Nombre de Usuario:</label>
             <input type="text" id="username" name="username" required>
+            
+            <!-- Nuevo campo Email -->
+            <label for="email">Correo Electrónico:</label>
+            <input type="email" id="email" name="email" required placeholder="ejemplo@correo.com">
+
             <label for="password">Contraseña:</label>
             <input type="password" id="password" name="password" required>
+            
             <button type="submit">Registrarse</button>
         </form>
         <div class="login-link">
