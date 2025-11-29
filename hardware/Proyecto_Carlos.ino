@@ -1,148 +1,114 @@
-//Incluye las librerías
 #include "HX711.h"
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
 #include <EEPROM.h>
 
-LiquidCrystal_I2C lcd(0x3F, 16, 2);
+// ===== CONFIGURACIÓN HARDWARE =====
+const int DT = 4;    // Pin DT HX711
+const int CLK = 5;   // Pin CLK HX711
+
 HX711 balanza;
+float escala = 2280.0;
 
-const int zero = 2;
-int DT = 4;
-int CLK = 5;
-int peso_calibracion = 42
-; // Peso de calibración
-long escala;
-int state_zero = 0;
-int last_state_zero = 0;
+// ===== CONFIGURACIÓN WiFi =====
+const char* ssid = "TU_SSID_AQUI";
+const char* password = "TU_CONTRASEÑA_AQUI";
+const char* serverUrl = "http://192.168.x.x/public/check-weight.php";
 
-//Función calibración
-void calibration() {
-  boolean conf = true;
-  long adc_lecture;
-  lcd.setCursor(0, 0);
-  lcd.print("Calibrando base");
-  lcd.setCursor(4, 1);
-  lcd.print("Balanza");
-  delay(3000);
-  balanza.read();
-  balanza.set_scale();
-  balanza.tare(20);
-  lcd.clear();
+float weight = 0;
 
-  while (conf == true) {
-    lcd.setCursor(1, 0);
-    lcd.print("Peso referencial:");
-    lcd.setCursor(1, 1);
-    lcd.print(peso_calibracion);
-    lcd.print(" g        ");
-    delay(3000);
-    lcd.clear();
-    lcd.setCursor(1, 0);
-    lcd.print("Ponga el Peso");
-    lcd.setCursor(1, 1);
-    lcd.print("Referencial");
-    delay(3000);
-    adc_lecture = balanza.get_value(100);
-    escala = adc_lecture / peso_calibracion;
-    EEPROM.put(0, escala);
-    delay(100);
-    lcd.setCursor(1, 0);
-    lcd.print("Retire el Peso");
-    lcd.setCursor(1, 1);
-    lcd.print("referencial");
-    delay(3000);
-    lcd.clear();
-    lcd.setCursor(1, 0);
-    lcd.print("READY!!....");
-    delay(3000);
-    lcd.clear();
-    conf = false;
-  }
-}
-
+// ===== SETUP =====
 void setup() {
-  Serial.begin(9600);
-
+  Serial.begin(115200);
+  EEPROM.begin(512);
+  
+  // Inicializar balanza
   balanza.begin(DT, CLK);
-  pinMode(zero, INPUT_PULLUP);   // mejor con pull-up interno
-  pinMode(13, OUTPUT);
 
-   Wire.begin();        // Inicializa bus I2C
-  scanI2C();           // Escanea y muestra direcciones
-
-  lcd.init();          // Prepara la librería LCD
-  lcd.begin(16, 2);    // Tamaño: 16x2
-  lcd.backlight();     // Enciende backlight
-
+  // Cargar escala desde EEPROM
   EEPROM.get(0, escala);
   if (escala == 0) escala = 2280;
   balanza.set_scale(escala);
   balanza.tare(20);
+
+  // Conectar a WiFi
+  connectToWiFi();
 }
 
-// Escanea el bus I2C y muestra direcciones en Serial y en LCD
-void scanI2C() {
-  Serial.println("\nEscaneando bus I2C...");
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Escaneando I2C");
-  delay(1000);
+// ===== FUNCIONES =====
 
-  bool found = false;
-  for (uint8_t addr = 1; addr < 127; addr++) {
-    Wire.beginTransmission(addr);
-    if (Wire.endTransmission() == 0) {
-      // Dispositivo respondiente
-      Serial.print(" > I2C device at 0x");
-      if (addr < 16) Serial.print('0');
-      Serial.println(addr, HEX);
-
-      // Muestra brevemente en LCD
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("I2C @ 0x");
-      if (addr < 16) lcd.print('0');
-      lcd.print(addr, HEX);
-      delay(1500);
-
-      found = true;
-    }
+void connectToWiFi() {
+  Serial.println("\nConectando a WiFi...");
+  
+  WiFi.begin(ssid, password);
+  
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
   }
-  if (!found) {
-    Serial.println("No se encontraron dispositivos I2C.");
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("No I2C devices");
-    delay(1500);
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✓ Conectado a WiFi");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\n✗ Error conectando a WiFi");
   }
-  lcd.clear();
 }
 
+float readWeightFromScale() {
+  if (balanza.is_ready()) {
+    return balanza.get_units(10); // Promedio de 10 lecturas
+  }
+  return 0;
+}
+
+void sendWeightToServer(float weight) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi no conectado");
+    return;
+  }
+
+  HTTPClient http;
+  
+  // JSON con los datos a enviar
+  String jsonPayload = "{\"scale_id\":\"XBOX_SERIES\",\"weight\":" + String(weight, 2) + "}";
+  
+  Serial.println("Enviando: " + jsonPayload);
+  
+  http.begin(serverUrl);
+  http.addHeader("Content-Type", "application/json");
+  
+  int httpCode = http.POST(jsonPayload);
+  
+  if (httpCode > 0) {
+    String response = http.getString();
+    Serial.println("Respuesta: " + response);
+  } else {
+    Serial.println("Error en la petición");
+  }
+  http.end();
+}
+
+// ===== LOOP =====
 void loop() {
-  float peso = balanza.get_units(10);
-
-  // Limpia y escribe en la primera línea
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Peso: ");
-  lcd.print(peso, 0);
-  lcd.print(" g");
-
-  // Serial para depuración
-  Serial.print("Peso: ");
-  Serial.print(peso, 2);
-  Serial.println(" g");
-
-  // Función “zero”
-  int state_zero = digitalRead(zero);
-  if (state_zero == LOW && last_state_zero == HIGH) {
-    balanza.tare(10);
+  // Reconectar WiFi si se desconecta
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi desconectado, reconectando...");
+    connectToWiFi();
   }
-  last_state_zero = state_zero;
-
-  // LED indicador
-  digitalWrite(13, (peso >= 20) ? HIGH : LOW);
-
-  delay(500);
+  
+  // Leer peso de la báscula
+  weight = readWeightFromScale();
+  
+  Serial.print("Peso: ");
+  Serial.print(weight);
+  Serial.println(" g");
+  
+  // Enviar peso al servidor
+  sendWeightToServer(weight);
+  
+  delay(4000); // Esperar 4 segundos antes del siguiente envío
 }

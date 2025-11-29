@@ -88,6 +88,37 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
                 </table>
                 <button id="btn-show-pay-modal">Pagar / Finalizar</button>
             </div>
+            <div class="validation-container" style="margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
+                <h3>Validar Compra por Peso</h3>
+                
+                <form id="validation-form">
+                    <label>Selecciona un producto:</label>
+                    <select id="scale_id" name="scale_id" required style="padding: 8px; margin: 10px 0;">
+                        <option value="">-- Selecciona un producto --</option>
+                        <option value="MANZANA_ROJA">Manzana Roja Grande (1000g)</option>
+                        <option value="PLATANO_CHIAPAS">Plátano de Chiapas (1000g)</option>
+                        <option value="JITOMATE_BOLA">Jitomate Bola (1000g)</option>
+                        <option value="AGUACATE_HASS">Aguacate Hass (1000g)</option>
+                        <option value="XBOX_SERIES">Xbox Series X (4500g)</option>
+                    </select>
+                    <br>
+                    <button type="submit" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        Solicitar Validación
+                    </button>
+                </form>
+
+                <div id="weight-info" style="display: none; margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
+                    <p><strong>Estado:</strong> <span id="status" style="font-weight: bold; color: orange;">Esperando...</span></p>
+                    <p><strong>Peso esperado:</strong> <span id="expected-weight">--</span> g</p>
+                    <p><strong>Peso medido:</strong> <span id="measured-weight">--</span> g</p>
+                    <p><strong>Tolerancia:</strong> <span id="tolerance">--</span> g</p>
+                    <p><strong>Precio:</strong> $<span id="price">--</span></p>
+                    <p id="message" style="font-size: 16px; font-weight: bold;"></p>
+                    <button type="button" id="cancel-btn" style="padding: 10px 20px; background-color: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
         </div>
     </main>
     <div id="payment-modal" class="modal-overlay">
@@ -228,6 +259,94 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchProducts();
     fetchUserPurchases();
 });
+</script>
+<script>
+    let validationId = null;
+    let checkInterval = null;
+
+    document.getElementById('validation-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const scaleId = document.getElementById('scale_id').value;
+        const formData = new FormData();
+        formData.append('scale_id', scaleId);
+
+        try {
+            const response = await fetch('validate_purchase.php', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                validationId = data.validation_id;
+                
+                document.getElementById('weight-info').style.display = 'block';
+                document.getElementById('expected-weight').textContent = data.expected_weight;
+                document.getElementById('tolerance').textContent = data.tolerance;
+                document.getElementById('price').textContent = data.price;
+                document.getElementById('message').textContent = data.message;
+
+                // Iniciar polling cada 2 segundos
+                checkValidationStatus();
+                checkInterval = setInterval(checkValidationStatus, 2000);
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error al conectar: ' + error.message);
+        }
+    });
+
+    async function checkValidationStatus() {
+        try {
+            const response = await fetch(`../api/check_validation_status.php?validation_id=${validationId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const statusEl = document.getElementById('status');
+                
+                // Cambiar color según estado
+                if (data.status === 'PENDING') {
+                    statusEl.style.color = 'orange';
+                } else if (data.status === 'VALIDATED') {
+                    statusEl.style.color = 'green';
+                } else if (data.status === 'FAILED') {
+                    statusEl.style.color = 'red';
+                }
+                
+                statusEl.textContent = data.status;
+                
+                if (data.measured_weight) {
+                    document.getElementById('measured-weight').textContent = data.measured_weight;
+                }
+                
+                document.getElementById('message').textContent = data.message;
+
+                // Si terminó la validación, detener el polling
+                if (data.status !== 'PENDING') {
+                    clearInterval(checkInterval);
+                    
+                    if (data.is_valid) {
+                        setTimeout(() => {
+                            alert('✅ Compra completada correctamente');
+                            location.reload();
+                        }, 2000);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    document.getElementById('cancel-btn').addEventListener('click', () => {
+        clearInterval(checkInterval);
+        document.getElementById('weight-info').style.display = 'none';
+        document.getElementById('validation-form').reset();
+        validationId = null;
+    });
 </script>
 </body>
 </html>

@@ -1,0 +1,60 @@
+<?php
+// filepath: c:\Users\Armando\OneDrive\Mis cosas\Documentos\Server De Xammps\htdocs\api\check_validation_status.php
+session_start();
+header('Content-Type: application/json');
+
+require_once __DIR__ . '/../config/database.php';
+
+// Verificar que el usuario esté autenticado
+if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
+    echo json_encode(['success' => false, 'error' => 'No autenticado']);
+    exit;
+}
+
+$validation_id = $_GET['validation_id'] ?? null;
+
+if (!$validation_id) {
+    echo json_encode(['success' => false, 'error' => 'validation_id requerido']);
+    exit;
+}
+
+$database = new Database();
+$conn = $database->getConnection();
+
+try {
+    $query = "SELECT * FROM validation_pending 
+              WHERE id = :id AND user_id = :user_id";
+    $stmt = $conn->prepare($query);
+    $stmt->bindParam(':id', $validation_id);
+    $stmt->bindParam(':user_id', $_SESSION['user_id']);
+    $stmt->execute();
+    $validation = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$validation) {
+        echo json_encode(['success' => false, 'error' => 'Validación no encontrada']);
+        exit;
+    }
+
+    $message = match($validation['status']) {
+        'PENDING' => 'Esperando lectura de la báscula...',
+        'VALIDATED' => '✅ Compra validada correctamente',
+        'FAILED' => '❌ El peso no coincide con lo esperado',
+        'EXPIRED' => '⏱️ La validación expiró',
+        default => 'Estado desconocido'
+    };
+
+    echo json_encode([
+        'success' => true,
+        'status' => $validation['status'],
+        'measured_weight' => $validation['measured_weight'],
+        'expected_weight' => $validation['expected_weight'],
+        'tolerance' => $validation['tolerance'],
+        'price' => $validation['price'],
+        'is_valid' => ($validation['status'] === 'VALIDATED'),
+        'message' => $message
+    ]);
+
+} catch (PDOException $e) {
+    echo json_encode(['success' => false, 'error' => 'Error de base de datos']);
+}
+?>
