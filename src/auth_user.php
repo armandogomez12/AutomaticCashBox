@@ -7,6 +7,46 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+// ---------------------------------------------------------
+// BLOQUE DE VERIFICACIÓN GOOGLE RECAPTCHA
+// ---------------------------------------------------------
+$recaptcha_response = $_POST['g-recaptcha-response'] ?? '';
+$secret_key = "6LfmixssAAAAAGTflymIHm2SXzRUqXA-IObfj3CU"; // <--- IMPORTANTE: Pega tu clave secreta aquí
+
+if (empty($recaptcha_response)) {
+    $_SESSION['error_message'] = 'Por favor, marca la casilla "No soy un robot".';
+    header('Location: ../public/login_user.php');
+    exit;
+}
+
+// Verificar con Google
+$verify_url = "https://www.google.com/recaptcha/api/siteverify";
+$data = [
+    'secret' => $secret_key,
+    'response' => $recaptcha_response,
+    'remoteip' => $_SERVER['REMOTE_ADDR']
+];
+
+$options = [
+    'http' => [
+        'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
+        'method'  => 'POST',
+        'content' => http_build_query($data)
+    ]
+];
+
+$context  = stream_context_create($options);
+$result = file_get_contents($verify_url, false, $context);
+$response_keys = json_decode($result, true);
+
+if(!$response_keys["success"]) {
+    $_SESSION['error_message'] = 'Verificación de robot fallida. Intenta de nuevo.';
+    header('Location: ../public/login_user.php');
+    exit;
+}
+// ---------------------------------------------------------
+
+// Capturar datos del usuario
 $username = $_POST['username'] ?? '';
 $password = $_POST['password'] ?? '';
 
@@ -20,7 +60,6 @@ $database = new Database();
 $conn = $database->getConnection();
 
 try {
-    // Buscamos en la tabla 'users'
     $query = "SELECT id, username, password_hash FROM users WHERE username = :username";
     $stmt = $conn->prepare($query);
     $stmt->bindParam(':username', $username);
@@ -30,11 +69,11 @@ try {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (password_verify($password, $user['password_hash'])) {
-            // ¡Login correcto! Guardamos los datos del usuario en la sesión
             $_SESSION['user_logged_in'] = true;
-            $_SESSION['user_id'] = $user['id']; // ¡Muy importante para tu idea!
+            $_SESSION['user_id'] = $user['id']; 
             $_SESSION['user_username'] = $user['username'];
-            header('Location: ../public/user_dashboard.php'); // Redirigir al panel de usuario
+            
+            header('Location: ../public/user_dashboard.php');
             exit;
         }
     }
@@ -48,3 +87,4 @@ try {
     header('Location: ../public/login_user.php');
     exit;
 }
+?>
