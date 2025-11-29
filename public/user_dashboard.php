@@ -134,12 +134,13 @@ if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true)
     </div>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // --- (Tus referencias al DOM y la lógica del Modal no cambian) ---
+    // --- Referencias DOM ---
     const productsTbody = document.getElementById('products-tbody');
     const purchasesTbody = document.getElementById('purchases-tbody');
     const purchaseForm = document.getElementById('purchase-form');
     const resultadoDiv = document.getElementById('resultado');
     const scaleIdInput = document.getElementById('scale_id');
+    const priceInput = document.getElementById('price'); // IMPORTANTE
     const paymentModal = document.getElementById('payment-modal');
     const btnShowPayModal = document.getElementById('btn-show-pay-modal');
     const btnContinueShopping = document.getElementById('btn-continue-shopping');
@@ -154,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 productsTbody.innerHTML = '';
                 data.products.forEach(product => {
-                    // --- CAMBIO 3: Añadimos la celda del peso al catálogo ---
                     const row = `
                         <tr>
                             <td>${product.product_name}</td>
@@ -164,8 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         </tr>`;
                     productsTbody.innerHTML += row;
                 });
-            } else { productsTbody.innerHTML = `<tr><td colspan="4">${data.error}</td></tr>`; } // Colspan ahora es 4
-        } catch (error) { productsTbody.innerHTML = '<tr><td colspan="4">Error de conexión al cargar catálogo.</td></tr>'; } // Colspan ahora es 4
+            } else { productsTbody.innerHTML = `<tr><td colspan="4">${data.error}</td></tr>`; } 
+        } catch (error) { productsTbody.innerHTML = '<tr><td colspan="4">Error de conexión al cargar catálogo.</td></tr>'; } 
     }
 
     async function fetchUserPurchases() {
@@ -175,11 +175,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 purchasesTbody.innerHTML = '';
                 if(data.purchases.length === 0){
-                    purchasesTbody.innerHTML = '<tr><td colspan="4">Aún no tienes compras.</td></tr>'; // Colspan ahora es 4
+                    purchasesTbody.innerHTML = '<tr><td colspan="4">Aún no tienes compras.</td></tr>'; 
                 } else {
                     data.purchases.forEach(purchase => {
                         const date = new Date(purchase.timestamp).toLocaleString('es-ES');
-                        // --- CAMBIO 4: Añadimos la celda del peso al historial ---
                         const row = `
                             <tr>
                                 <td>${purchase.product_name}</td>
@@ -190,11 +189,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         purchasesTbody.innerHTML += row;
                     });
                 }
-            } else { purchasesTbody.innerHTML = `<tr><td colspan="4">${data.error}</td></tr>`; } // Colspan ahora es 4
-        } catch (error) { purchasesTbody.innerHTML = '<tr><td colspan="4">Error de conexión al cargar historial.</td></tr>'; } // Colspan ahora es 4
+            } else { purchasesTbody.innerHTML = `<tr><td colspan="4">${data.error}</td></tr>`; } 
+        } catch (error) { purchasesTbody.innerHTML = '<tr><td colspan="4">Error de conexión al cargar historial.</td></tr>'; } 
     }
 
-    // --- (El resto de tu JavaScript: purchaseForm, QR, Modal... no cambia) ---
+    // --- LÓGICA DEL FORMULARIO DE COMPRA ---
     purchaseForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const formData = { scale_id: scaleIdInput.value, price: document.getElementById('price').value };
@@ -215,18 +214,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- LÓGICA DEL QR CORREGIDA (SOPORTE MULTIFORMATO) ---
     const scanQrBtn = document.getElementById('scan-qr-btn');
     const qrReaderDiv = document.getElementById('qr-reader');
     const html5QrCode = new Html5Qrcode("qr-reader");
+
     const onScanSuccess = (decodedText) => {
-        scaleIdInput.value = decodedText;
+        let parts = decodedText.split('|');
+        if (parts.length < 2) {
+            parts = decodedText.split(',');
+        }
+
+        if (parts.length >= 5) {
+            // CASO 1: Formato Largo (Del Admin Panel)
+            // Estructura: Nombre|ID|Peso|Tolerancia|Precio
+            // ID está en índice 1, Precio en índice 4
+            scaleIdInput.value = parts[1].trim(); 
+            document.getElementById('price').value = parts[4].trim();
+            
+        } else if (parts.length >= 2) {
+            // CASO 2: Formato Corto (ID y Precio)
+            // Estructura: ID|Precio
+            // ID está en índice 0, Precio en índice 1
+            scaleIdInput.value = parts[0].trim();
+            document.getElementById('price').value = parts[1].trim();
+            
+        } else {
+            // CASO 3: Formato desconocido, pegamos todo al ID
+            scaleIdInput.value = decodedText;
+            alert("Formato QR simple detectado. Verifica el precio manualmente.");
+        }
+
         html5QrCode.stop().catch(err => console.error("Fallo al detener el scanner.", err));
         qrReaderDiv.style.display = 'none';
     };
+
     scanQrBtn.addEventListener('click', () => {
         qrReaderDiv.style.display = 'block';
         html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {});
     });
+    // ---------------------------------
 
     btnShowPayModal.addEventListener('click', () => {
         paymentModal.style.display = 'flex';
@@ -261,6 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <script>
+    // --- Lógica de Validación por Peso (Polling) ---
     let validationId = null;
     let checkInterval = null;
 
@@ -288,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('price').textContent = data.price;
                 document.getElementById('message').textContent = data.message;
 
-                // Iniciar polling cada 2 segundos
+                // Iniciar polling
                 checkValidationStatus();
                 checkInterval = setInterval(checkValidationStatus, 2000);
             } else {
@@ -307,27 +335,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 const statusEl = document.getElementById('status');
                 
-                // Cambiar color según estado
-                if (data.status === 'PENDING') {
-                    statusEl.style.color = 'orange';
-                } else if (data.status === 'VALIDATED') {
-                    statusEl.style.color = 'green';
-                } else if (data.status === 'FAILED') {
-                    statusEl.style.color = 'red';
-                }
+                if (data.status === 'PENDING') statusEl.style.color = 'orange';
+                else if (data.status === 'VALIDATED') statusEl.style.color = 'green';
+                else if (data.status === 'FAILED') statusEl.style.color = 'red';
                 
                 statusEl.textContent = data.status;
                 
                 if (data.measured_weight) {
                     document.getElementById('measured-weight').textContent = data.measured_weight;
                 }
-                
                 document.getElementById('message').textContent = data.message;
 
-                // Si terminó la validación, detener el polling
                 if (data.status !== 'PENDING') {
                     clearInterval(checkInterval);
-                    
                     if (data.is_valid) {
                         setTimeout(() => {
                             alert('✅ Compra completada correctamente');
@@ -336,9 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-        } catch (error) {
-            console.error('Error:', error);
-        }
+        } catch (error) { console.error('Error:', error); }
     }
 
     document.getElementById('cancel-btn').addEventListener('click', () => {
