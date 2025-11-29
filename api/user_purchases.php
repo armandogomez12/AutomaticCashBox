@@ -1,35 +1,28 @@
 <?php
 session_start();
-header('Content-Type: application/json');
 require_once __DIR__ . '/../config/database.php';
+header('Content-Type: application/json');
 
-if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
-    echo json_encode(['success' => false, 'error' => 'No has iniciado sesión.']);
+if (!isset($_SESSION['user_logged_in'])) {
+    echo json_encode(['success' => false, 'error' => 'No autorizado']);
     exit;
 }
 
-$user_id = $_SESSION['user_id'];
+$userId = $_SESSION['user_id'];
 $database = new Database();
 $conn = $database->getConnection();
 
 try {
-    // --- CAMBIO AQUÍ ---
-    // Añadimos "ml.expected_weight" a la consulta para obtener el peso guardado.
-    $query = "SELECT ws.product_name, ml.price, ml.expected_weight, ml.timestamp
-              FROM measurement_logs ml
-              JOIN weight_standards ws ON ml.scale_id = ws.scale_id
-              WHERE ml.user_id = :user_id
-              ORDER BY ml.timestamp DESC";
-    
+    // Obtenemos las últimas 20 compras del usuario desde la tabla NUEVA (user_purchases)
+    $query = "SELECT * FROM user_purchases WHERE user_id = :uid ORDER BY timestamp DESC LIMIT 20";
     $stmt = $conn->prepare($query);
-    $stmt->bindParam(':user_id', $user_id);
-    $stmt->execute();
+    $stmt->execute([':uid' => $userId]);
     
     $purchases = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+    
     echo json_encode(['success' => true, 'purchases' => $purchases]);
 
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'error' => 'Error de base de datos.']);
+    echo json_encode(['success' => false, 'error' => 'Error al cargar historial']);
 }
 ?>
