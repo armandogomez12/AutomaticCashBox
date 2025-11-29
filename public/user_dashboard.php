@@ -197,18 +197,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchUserPurchases() {
+        console.log('🔄 Llamando fetchUserPurchases...');
         try {
             const response = await fetch('../api/user_purchases.php');
+            console.log('📡 Respuesta recibida:', response.status);
+            
             const data = await response.json();
+            console.log('✓ JSON parseado:', data);
             
-            console.log('Respuesta user_purchases:', data); // DEBUG
+            const tbody = document.querySelector('#purchases-table tbody');
+            console.log('📋 Tbody encontrado:', tbody ? 'SÍ' : 'NO');
             
-            if (data.success) {
-                const tbody = document.querySelector('#purchases-table tbody');
-                tbody.innerHTML = '';
+            if (!tbody) {
+                console.error('❌ No encontró #purchases-table tbody');
+                return;
+            }
+            
+            if (data.success && data.purchases) {
+                console.log('✓ Éxito. Registros:', data.purchases.length);
                 
-                if (data.purchases && data.purchases.length > 0) {
-                    data.purchases.forEach(purchase => {
+                if (data.purchases.length > 0) {
+                    tbody.innerHTML = ''; // Limpiar
+                    
+                    data.purchases.forEach((purchase, index) => {
+                        console.log(`Insertando compra ${index + 1}:`, purchase);
+                        
                         const row = `
                             <tr>
                                 <td>${purchase.product_name || purchase.scale_id}</td>
@@ -219,18 +232,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                         tbody.innerHTML += row;
                     });
+                    
+                    console.log('✓ Tabla actualizada con', data.purchases.length, 'compras');
                 } else {
                     tbody.innerHTML = '<tr><td colspan="4">No hay compras registradas</td></tr>';
                 }
             } else {
-                console.error('Error en user_purchases:', data.error);
-                document.querySelector('#purchases-table tbody').innerHTML = `<tr><td colspan="4">Error: ${data.error}</td></tr>`;
+                console.error('❌ Error en respuesta:', data.error);
+                tbody.innerHTML = `<tr><td colspan="4">Error: ${data.error}</td></tr>`;
             }
         } catch (error) {
-            console.error('Error al cargar compras:', error);
-            document.querySelector('#purchases-table tbody').innerHTML = '<tr><td colspan="4">Error de conexión</td></tr>';
+            console.error('❌ Error general:', error);
+            const tbody = document.querySelector('#purchases-table tbody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="4">Error de conexión</td></tr>';
         }
     }
+    
 
     // LÓGICA COMPRA 
     purchaseForm.addEventListener('submit', async (event) => {
@@ -252,6 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resultadoDiv.className = 'fail';
         }
     });
+
 
     // QR 
     const scanQrBtn = document.getElementById('scan-qr-btn');
@@ -303,6 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    
+
     fetchProducts();
     fetchUserPurchases();
 });
@@ -337,6 +357,61 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { alert('Error al conectar: ' + error.message); }
     });
 
+    async function fetchUserPurchases() {
+        console.log('🔄 Llamando fetchUserPurchases...');
+        try {
+            const response = await fetch('../api/user_purchases.php');
+            console.log('📡 Respuesta recibida:', response.status);
+            
+            const data = await response.json();
+            console.log('✓ JSON parseado:', data);
+            
+            const tbody = document.querySelector('#purchases-table tbody');
+            console.log('📋 Tbody encontrado:', tbody ? 'SÍ' : 'NO');
+            
+            if (!tbody) {
+                console.error('❌ No encontró #purchases-table tbody');
+                return;
+            }
+            
+            if (data.success && data.purchases) {
+                console.log('✓ Éxito. Registros:', data.purchases.length);
+                
+                if (data.purchases.length > 0) {
+                    tbody.innerHTML = '';
+                    
+                    data.purchases.forEach((purchase, index) => {
+                        console.log(`Insertando compra ${index + 1}:`, purchase);
+                        
+                        const row = `
+                            <tr>
+                                <td>${purchase.product_name || purchase.scale_id}</td>
+                                <td>$${parseFloat(purchase.price).toFixed(2)}</td>
+                                <td>${purchase.expected_weight} g</td>
+                                <td>${new Date(purchase.timestamp).toLocaleString('es-MX')}</td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
+                    
+                    console.log('✓ Tabla actualizada con', data.purchases.length, 'compras');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4">No hay compras registradas</td></tr>';
+                }
+            } else {
+                console.error('❌ Error en respuesta:', data.error);
+                tbody.innerHTML = `<tr><td colspan="4">Error: ${data.error}</td></tr>`;
+            }
+        } catch (error) {
+            console.error('❌ Error general:', error);
+            const tbody = document.querySelector('#purchases-table tbody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="4">Error de conexión</td></tr>';
+        }
+    }
+
+    // === LLAMAR PRIMERO AL CARGAR ===
+    console.log('📍 Página cargada, cargando compras iniciales...');
+    fetchUserPurchases();
     async function checkValidationStatus() {
         try {
             const response = await fetch(`../api/check_validation_status.php?validation_id=${validationId}`);
@@ -363,16 +438,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     clearInterval(checkInterval);
                     
                     if (data.is_valid) {
-                        // EN VEZ DE location.reload(), actualiza solo user_purchases
+                        // CAMBIO: Actualizar tabla de compras inmediatamente
+                        fetchUserPurchases();
+                        
+                        // Después de 3 segundos, ocultar caja y limpiar
                         setTimeout(() => {
-                            fetchUserPurchases(); // Actualiza la tabla de compras sin recargar
-                            // Oculta la caja de validación después de 2 segundos
-                            setTimeout(() => {
-                                document.getElementById('weight-info').style.display = 'none';
-                                document.getElementById('validation-form').reset();
-                                validationId = null;
-                            }, 2000);
-                        }, 1000);
+                            document.getElementById('weight-info').style.display = 'none';
+                            document.getElementById('validation-form').reset();
+                            validationId = null;
+                        }, 3000);
                     }
                 }
             }

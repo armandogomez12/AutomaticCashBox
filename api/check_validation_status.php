@@ -9,6 +9,7 @@ $validation_id = $_GET['validation_id'] ?? $_POST['validation_id'] ?? null;
 $simulate = $_GET['simulate'] ?? $_POST['simulate'] ?? null;
 $simulate_weight = $_GET['simulate_weight'] ?? $_POST['simulate_weight'] ?? null;
 $test_token = $_GET['test_token'] ?? $_POST['test_token'] ?? null;
+
 $TEST_TOKEN_VALUE = 'PRUEBA_LOCAL_123';
 $bypass_auth = ($test_token === $TEST_TOKEN_VALUE);
 
@@ -26,9 +27,10 @@ $database = new Database();
 $conn = $database->getConnection();
 
 try {
+    // Obtener validación
     $query = "SELECT * FROM validation_pending WHERE id = :id LIMIT 1";
     $stmt = $conn->prepare($query);
-    $stmt->bindParam(':id', $validation_id);
+    $stmt->bindParam(':id', $validation_id, PDO::PARAM_INT);
     $stmt->execute();
     $validation = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -37,7 +39,7 @@ try {
         exit;
     }
 
-    // Simular si se solicitó
+    // Simular si se solicita
     if ($simulate !== null || $simulate_weight !== null) {
         if ($simulate_weight !== null && is_numeric($simulate_weight)) {
             $measured = floatval($simulate_weight);
@@ -51,7 +53,7 @@ try {
             $measured = $expected + ((rand(-100,100)/100.0) * $tol);
         }
 
-        // Validar
+        // Validar peso
         $min_weight = floatval($validation['expected_weight']) - floatval($validation['tolerance']);
         $max_weight = floatval($validation['expected_weight']) + floatval($validation['tolerance']);
         $is_valid = ($measured >= $min_weight && $measured <= $max_weight);
@@ -64,11 +66,14 @@ try {
         $uStmt = $conn->prepare($update);
         $uStmt->bindParam(':measured_weight', $measured);
         $uStmt->bindParam(':status', $new_status);
-        $uStmt->bindParam(':id', $validation_id);
+        $uStmt->bindParam(':id', $validation_id, PDO::PARAM_INT);
         $uStmt->execute();
 
-        // Si VALIDATED, insertar en user_purchases
+        error_log("✓ validation_pending actualizada: ID={$validation_id}, status={$new_status}");
+
+        // === INSERCIÓN EN user_purchases ===
         if ($new_status === 'VALIDATED') {
+            // Obtener nombre del producto
             $q2 = "SELECT product_name FROM weight_standards WHERE scale_id = :scale_id LIMIT 1";
             $s2 = $conn->prepare($q2);
             $s2->bindParam(':scale_id', $validation['scale_id']);
@@ -76,7 +81,7 @@ try {
             $ws = $s2->fetch(PDO::FETCH_ASSOC);
             $product_name = $ws['product_name'] ?? $validation['scale_id'];
 
-            // Insertar SIN duplicar
+            // INSERTAR directamente (sin verificar duplicados para forzar la inserción)
             $ins = "INSERT INTO user_purchases (user_id, scale_id, product_name, expected_weight, price) 
                     VALUES (:user_id, :scale_id, :product_name, :expected_weight, :price)";
             $iStmt = $conn->prepare($ins);
@@ -85,15 +90,19 @@ try {
             $iStmt->bindParam(':product_name', $product_name);
             $iStmt->bindParam(':expected_weight', $validation['expected_weight']);
             $iStmt->bindParam(':price', $validation['price']);
-            $iStmt->execute();
             
-            error_log("✓ Inserción exitosa: user_id={$validation['user_id']}, product={$product_name}");
+            if ($iStmt->execute()) {
+                error_log("✓✓✓ INSERCIÓN EXITOSA en user_purchases: user_id={$validation['user_id']}, product={$product_name}, price={$validation['price']}");
+            } else {
+                error_log("✗✗✗ ERROR en inserción: " . json_encode($iStmt->errorInfo()));
+            }
         }
 
         $validation['measured_weight'] = $measured;
         $validation['status'] = $new_status;
     }
 
+    // Mensaje final
     $message = match($validation['status']) {
         'PENDING' => 'Esperando lectura de la báscula...',
         'VALIDATED' => '✅ Compra validada correctamente',
@@ -113,7 +122,7 @@ try {
     ]);
 
 } catch (PDOException $e) {
-    error_log('Error en check_validation_status.php: ' . $e->getMessage());
+    error_log('❌ Error en check_validation_status.php: ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Error BD: ' . $e->getMessage()]);
 }
 ?>
