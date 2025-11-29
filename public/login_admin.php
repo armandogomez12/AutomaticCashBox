@@ -1,7 +1,6 @@
 <?php
-session_start(); // Inicia la sesión
+session_start();
 
-// Si el admin ya está logueado, redirigir al panel
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
     header('Location: admin_panel.php');
     exit;
@@ -13,8 +12,11 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login de Administrador</title>
+    <!-- Script de Google reCAPTCHA -->
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+
     <style>
-        :root { --primary-color: #6f42c1; /* Color morado para admin */ }
+        :root { --primary-color: #6f42c1; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f8f9fa; color: #343a40; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .container { background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); width: 100%; max-width: 400px; text-align: center; }
         h1 { margin-bottom: 30px; font-weight: 600; }
@@ -26,6 +28,9 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
         .link-container { margin-top: 20px; text-align: center; }
         .link-container a { color: var(--primary-color); text-decoration: none; }
         .link-container a:hover { text-decoration: underline; }
+        
+        /* Centrar Captcha */
+        .g-recaptcha { display: flex; justify-content: center; margin-bottom: 20px; }
     </style>
 </head>
 <body>
@@ -38,6 +43,9 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
             <label for="password">Contraseña:</label>
             <input type="password" id="password" name="password" required>
             
+            <!-- CAPTCHA GOOGLE -->
+            <div class="g-recaptcha" data-sitekey="6LfmixssAAAAAMg_pnFQpifT7wgrD3sledW4uAE0"></div>
+
             <button type="submit">Iniciar Sesión</button>
         </form>
 
@@ -46,7 +54,6 @@ if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true
         </div>
         
         <div class="link-container">
-            <!-- ENLACE CORREGIDO: Apunta al archivo de recuperación -->
             <a href="recuperar_contraseña_admin.php">¿Olvidaste tu contraseña?</a>
         </div>
 
