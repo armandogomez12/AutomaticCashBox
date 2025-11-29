@@ -26,41 +26,35 @@ $validator = new WeightValidator();
 $result = $validator->validateWeight($scale_id, $measured_weight);
 
 // Si la validación fue exitosa, buscar si hay una validación pendiente
-if ($result['success']) {
-    $database = new Database();
-    $conn = $database->getConnection();
+if ($pending) {
+    // Actualizar el estado de validación pendiente
+    $new_status = $result['is_valid'] ? 'VALIDATED' : 'FAILED';
+    
+    $updateQuery = "UPDATE validation_pending 
+                   SET measured_weight = :measured_weight, status = :status, validated_at = NOW() 
+                   WHERE id = :id";
+    $updateStmt = $conn->prepare($updateQuery);
+    $updateStmt->bindParam(':measured_weight', $measured_weight);
+    $updateStmt->bindParam(':status', $new_status);
+    $updateStmt->bindParam(':id', $pending['id']);
+    $updateStmt->execute();
 
-    try {
-        // Buscar la validación pendiente más reciente para este scale_id
-        $query = "SELECT id FROM validation_pending 
-                  WHERE scale_id = :scale_id AND status = 'PENDING' 
-                  ORDER BY created_at DESC LIMIT 1";
-        $stmt = $conn->prepare($query);
-        $stmt->bindParam(':scale_id', $scale_id);
-        $stmt->execute();
-        $pending = $stmt->fetch(PDO::FETCH_ASSOC);
+    // --- INSERCIÓN: si es válido, crear registro de compra compatible con user_purchases.php ---
+    if ($result['is_valid']) {
+        $insertPurchase = "INSERT INTO purchases (validation_id, user_id, scale_id, price, measured_weight, status, created_at)
+                           VALUES (:validation_id, :user_id, :scale_id, :price, :measured_weight, 'COMPLETED', NOW())";
+        $insStmt = $conn->prepare($insertPurchase);
+        $insStmt->bindParam(':validation_id', $pending['id']);
+        $insStmt->bindParam(':user_id', $pending['user_id']);
+        $insStmt->bindParam(':scale_id', $pending['scale_id']);
+        // Si no guardaste price en validation_pending, usa $result['price'] o $pending['price']
+        $priceToInsert = $pending['price'] ?? $result['price'] ?? 0;
+        $insStmt->bindParam(':price', $priceToInsert);
+        $insStmt->bindParam(':measured_weight', $measured_weight);
+        $insStmt->execute();
 
-        if ($pending) {
-            // Actualizar el estado de validación pendiente
-            $new_status = $result['is_valid'] ? 'VALIDATED' : 'FAILED';
-            
-            $updateQuery = "UPDATE validation_pending 
-                           SET measured_weight = :measured_weight, status = :status, validated_at = NOW() 
-                           WHERE id = :id";
-            $updateStmt = $conn->prepare($updateQuery);
-            $updateStmt->bindParam(':measured_weight', $measured_weight);
-            $updateStmt->bindParam(':status', $new_status);
-            $updateStmt->bindParam(':id', $pending['id']);
-            $updateStmt->execute();
-
-            // Si es válido, registrar en measurement_logs
-            if ($result['is_valid']) {
-                $validator->logMeasurement($scale_id, $measured_weight, $result['is_valid'], $result['price']);
-            }
-        }
-    } catch (PDOException $e) {
-        // Log del error pero seguir respondiendo
-        error_log('Error actualizando validación: ' . $e->getMessage());
+        // (Opcional) registrar en measurement_logs también si existe esa tabla
+        // ...
     }
 }
 

@@ -172,25 +172,36 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('../api/user_purchases.php');
             const data = await response.json();
+            
+            console.log('Respuesta user_purchases:', data); // DEBUG
+            
             if (data.success) {
-                purchasesTbody.innerHTML = '';
-                if(data.purchases.length === 0){
-                    purchasesTbody.innerHTML = '<tr><td colspan="4">Aún no tienes compras.</td></tr>'; 
-                } else {
+                const tbody = document.querySelector('#purchases-table tbody');
+                tbody.innerHTML = '';
+                
+                if (data.purchases && data.purchases.length > 0) {
                     data.purchases.forEach(purchase => {
-                        const date = new Date(purchase.timestamp).toLocaleString('es-ES');
                         const row = `
                             <tr>
-                                <td>${purchase.product_name}</td>
+                                <td>${purchase.product_name || purchase.scale_id}</td>
                                 <td>$${parseFloat(purchase.price).toFixed(2)}</td>
-                                <td>${parseFloat(purchase.expected_weight).toFixed(2)} g</td>
-                                <td>${date}</td>
-                            </tr>`;
-                        purchasesTbody.innerHTML += row;
+                                <td>${purchase.expected_weight} g</td>
+                                <td>${new Date(purchase.timestamp).toLocaleString('es-MX')}</td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
                     });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4">No hay compras registradas</td></tr>';
                 }
-            } else { purchasesTbody.innerHTML = `<tr><td colspan="4">${data.error}</td></tr>`; } 
-        } catch (error) { purchasesTbody.innerHTML = '<tr><td colspan="4">Error de conexión al cargar historial.</td></tr>'; } 
+            } else {
+                console.error('Error en user_purchases:', data.error);
+                document.querySelector('#purchases-table tbody').innerHTML = `<tr><td colspan="4">Error: ${data.error}</td></tr>`;
+            }
+        } catch (error) {
+            console.error('Error al cargar compras:', error);
+            document.querySelector('#purchases-table tbody').innerHTML = '<tr><td colspan="4">Error de conexión</td></tr>';
+        }
     }
 
     // --- LÓGICA DEL FORMULARIO DE COMPRA ---
@@ -335,6 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 const statusEl = document.getElementById('status');
                 
+                // Cambiar color según estado
                 if (data.status === 'PENDING') statusEl.style.color = 'orange';
                 else if (data.status === 'VALIDATED') statusEl.style.color = 'green';
                 else if (data.status === 'FAILED') statusEl.style.color = 'red';
@@ -344,19 +356,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.measured_weight) {
                     document.getElementById('measured-weight').textContent = data.measured_weight;
                 }
+                
                 document.getElementById('message').textContent = data.message;
 
+                // Si terminó la validación, detener el polling
                 if (data.status !== 'PENDING') {
                     clearInterval(checkInterval);
+                    
                     if (data.is_valid) {
+                        // EN VEZ DE location.reload(), actualiza solo user_purchases
                         setTimeout(() => {
-                            alert('✅ Compra completada correctamente');
-                            location.reload();
-                        }, 2000);
+                            fetchUserPurchases(); // Actualiza la tabla de compras sin recargar
+                            // Oculta la caja de validación después de 2 segundos
+                            setTimeout(() => {
+                                document.getElementById('weight-info').style.display = 'none';
+                                document.getElementById('validation-form').reset();
+                                validationId = null;
+                            }, 2000);
+                        }, 1000);
                     }
                 }
             }
-        } catch (error) { console.error('Error:', error); }
+        } catch (error) {
+            console.error('Error:', error);
+        }
     }
 
     document.getElementById('cancel-btn').addEventListener('click', () => {
