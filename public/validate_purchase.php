@@ -14,7 +14,7 @@ $scale_id = $_POST['scale_id'] ?? null;
 $user_id = $_SESSION['user_id']; // ← DEBE SER DE LA SESIÓN
 
 if (!$scale_id) {
-    echo json_encode(['success' => false, 'error' => 'scale_id requerido']);
+    echo json_encode(['success' => false, 'error' => 'Se requiere Verificar el peso del producto.']);
     exit;
 }
 
