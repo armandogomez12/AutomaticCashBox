@@ -2,13 +2,9 @@
 session_start();
 require_once __DIR__ . '/../config/database.php';
 
-// --- Medida de Seguridad Opcional pero Recomendada ---
-// Solo permite registrar nuevos admins si ya hay un admin logueado.
-// Si quieres que cualquiera pueda crear un admin, puedes comentar o borrar este bloque.
+// Verificación de sesión (Opcional)
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-    // Si no hay sesión, podrías redirigir al login o mostrar un error.
-    // Por ahora, lo dejaremos pasar para que puedas crear tu primer admin fácilmente.
-    // die("Acceso denegado. Debes ser un administrador para registrar a otros.");
+    // die("Acceso denegado.");
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -17,34 +13,45 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $username = $_POST['username'] ?? '';
+$email = $_POST['email'] ?? '';
 $password = $_POST['password'] ?? '';
 
-if (empty($username) || empty($password)) {
+if (empty($username) || empty($email) || empty($password)) {
     header('Location: ../public/register_admin.php?error=Todos los campos son requeridos');
     exit;
 }
 
-// Hashear la contraseña por seguridad
+// Hashear password
 $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+// ESTADO INICIAL: 0 (Desactivado/En lista de espera)
+$is_active = 0;
 
 $database = new Database();
 $conn = $database->getConnection();
 
 try {
-    $query = "INSERT INTO admins (username, password_hash) VALUES (:username, :password_hash)";
+    // Insertamos incluyendo el email y el estado is_active
+    $query = "INSERT INTO admins (username, email, password_hash, is_active) VALUES (:username, :email, :password_hash, :is_active)";
     $stmt = $conn->prepare($query);
+    
     $stmt->bindParam(':username', $username);
+    $stmt->bindParam(':email', $email);
     $stmt->bindParam(':password_hash', $password_hash);
+    $stmt->bindParam(':is_active', $is_active);
     
     if ($stmt->execute()) {
-        header('Location: ../public/register_admin.php?status=success');
+        // Mensaje especial avisando que requiere activación
+        $msg = "Registro creado. La cuenta está EN ESPERA de activación por un Super Usuario.";
+        header('Location: ../public/register_admin.php?status=success&msg=' . urlencode($msg));
         exit;
     }
 } catch (PDOException $e) {
     if ($e->errorInfo[1] == 1062) {
-        header('Location: ../public/register_admin.php?error=El nombre de usuario ya existe.');
+        header('Location: ../public/register_admin.php?error=El usuario o correo ya existen.');
     } else {
-        header('Location: ../public/register_admin.php?error=Error en la base de datos.');
+        header('Location: ../public/register_admin.php?error=Error DB: ' . $e->getMessage());
     }
     exit;
 }
+?>
